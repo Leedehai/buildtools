@@ -27,18 +27,22 @@ BIN_PATH = os.path.join(BIN_DIR, "gn")
 
 def execute_with_downloaded_bin(args):
     if not os.path.isfile(BIN_PATH):
-        if 0 != subprocess.call([
-            os.path.join(os.path.dirname(os.path.dirname(BIN_DIR)), "get-binary.py") ]):
+        import get_binaries
+        if 0 != get_binaries.run(): # Download both GN and Ninja
             return 1
     return subprocess.call([ BIN_PATH ] + args[1:])
 
 def has_bin_locally(name):
     # I could use shutil.which() but it's only available in Python3.3+
     with open(os.devnull, 'w') as devnull:
-        has_chromium_dev_depot_tools = 0 == subprocess.call([ "which", "gclient" ], stdout=devnull, stderr=devnull)
+        has_chromium_dev_depot_tools = 0 == subprocess.call(
+            [ "which", "gclient" ], stdout=devnull, stderr=devnull
+        )
         if has_chromium_dev_depot_tools:
             return False
-        ret = subprocess.call([ "which" ] + [ name ], stdout=devnull, stderr=devnull)
+        ret = subprocess.call(
+            [ "which" ] + [ name ], stdout=devnull, stderr=devnull
+        )
     return ret == 0
 
 def main(args):

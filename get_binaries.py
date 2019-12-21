@@ -8,13 +8,14 @@
 # You do not need to execute this script directly; gn.py and ninja.py will execute
 # it if binaries are needed but not found.
 
-import io
 import os, sys
-import shutil
-import zipfile
-import platform
-import subprocess
 import argparse
+import io
+import platform
+import shutil
+import stat
+import subprocess
+import zipfile
 
 try: # For Python 3.0 and later, nasty Python
     from urllib.request import urlopen
@@ -25,7 +26,7 @@ except ImportError: # Fall back to Python 2's urllib2
     from urllib2 import HTTPError
     from urllib2 import URLError
 
-def get_platform():
+def _get_platform():
     if platform.machine() not in ["AMD64", "x86_64"]:
         return None
     if sys.platform.startswith("linux"):
@@ -34,7 +35,7 @@ def get_platform():
         return "mac-amd64"
     raise NotImplementedError("Platform '%s' not supported" % sys.platform)
 
-PLATFORM = get_platform()
+PLATFORM = _get_platform()
 BIN_DIR = os.path.join(
     os.path.dirname(__file__), "bin", ("linux" if PLATFORM.startswith("linux") else "darwin"))
 GN_BIN = "gn"
@@ -42,7 +43,7 @@ GN_URL = "https://chrome-infra-packages.appspot.com/dl/gn/gn/%s/+/latest" % PLAT
 NINJA_BIN = "ninja"
 NINJA_URL = "https://chrome-infra-packages.appspot.com/dl/infra/ninja/%s/+/latest" % PLATFORM
 
-def download_and_unpack(what, url, output_dir, bin_name, only_dowload_if_must):
+def _download_and_unpack(what, url, output_dir, bin_name, only_dowload_if_must):
     """Download an archive from url and extract gn from it into output_dir."""
     file_path = os.path.join(output_dir, bin_name)
     already_exist = os.path.isfile(file_path)
@@ -76,12 +77,11 @@ def download_and_unpack(what, url, output_dir, bin_name, only_dowload_if_must):
         return False
     return True
 
-def set_executable_bit(path):
-    mode = os.stat(path).st_mode
-    mode |= (mode & 0o444) >> 2 # Copy R bits to X.
-    os.chmod(path, mode)
+def _set_executable_bit(filepath):
+    file_stats = os.stat(filepath)
+    os.chmod(filepath, file_stats.st_mode | stat.S_IXUSR)
 
-def print_version_number(path, user_called_explicitly=False):
+def _print_version_number(path, user_called_explicitly=False):
     try:
         version_info = subprocess.check_output([path, "--version"]).decode().strip()
     except (subprocess.CalledProcessError, OSError) as e: # OSError: e.g. binaries not found
@@ -93,10 +93,12 @@ def print_version_number(path, user_called_explicitly=False):
         print("%14s'%s --version': %s" % (" ", os.path.basename(path), version_info))
     return True
 
-def main():
-    parser = argparse.ArgumentParser(description="Download latest GN and Ninja binaries",
-                                     epilog="For what GN and Ninja are, and why this project ditched Make,\nsee //zen/why-gn-ninja.md",
-                                     formatter_class=argparse.RawTextHelpFormatter)
+def run(argv=[]):
+    parser = argparse.ArgumentParser(
+        description="Download latest GN and Ninja binaries from:\n  %s\n  %s" % (GN_URL, NINJA_URL),
+        epilog="If no option is given, download the binaries.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
     parser.add_argument("-v", "--versions", action="store_true",
                         help="print version numbers of the downloaded binaries")
     parser.add_argument("-i", "--only-download-if-must", action="store_true",
@@ -105,11 +107,11 @@ def main():
                         help="remove downloaded binaries in %s" % BIN_DIR)
     parser.add_argument("-ra", "--remove-all", action="store_true", # remove bin/, bin/darwin, bin/linux
                         help="remove directory %s" % os.path.dirname(BIN_DIR))
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.versions:
-        gn_ok = print_version_number(os.path.join(BIN_DIR, GN_BIN), True)
-        ninja_ok = print_version_number(os.path.join(BIN_DIR, NINJA_BIN), True)
+        gn_ok = _print_version_number(os.path.join(BIN_DIR, GN_BIN), True)
+        ninja_ok = _print_version_number(os.path.join(BIN_DIR, NINJA_BIN), True)
         return 0 if (gn_ok and ninja_ok) else 1
 
     if args.remove:
@@ -128,16 +130,16 @@ def main():
 
     has_error = False
 
-    if True == download_and_unpack("GN", GN_URL, BIN_DIR, GN_BIN, args.only_download_if_must):
-        set_executable_bit(os.path.join(BIN_DIR, GN_BIN))
-        if False == print_version_number(os.path.join(BIN_DIR, GN_BIN)):
+    if True == _download_and_unpack("GN", GN_URL, BIN_DIR, GN_BIN, args.only_download_if_must):
+        _set_executable_bit(os.path.join(BIN_DIR, GN_BIN))
+        if False == _print_version_number(os.path.join(BIN_DIR, GN_BIN)):
             has_error = True
     else:
         has_error = True
 
-    if True == download_and_unpack("Ninja", NINJA_URL, BIN_DIR, NINJA_BIN, args.only_download_if_must):
-        set_executable_bit(os.path.join(BIN_DIR, NINJA_BIN))
-        if False == print_version_number(os.path.join(BIN_DIR, NINJA_BIN)):
+    if True == _download_and_unpack("Ninja", NINJA_URL, BIN_DIR, NINJA_BIN, args.only_download_if_must):
+        _set_executable_bit(os.path.join(BIN_DIR, NINJA_BIN))
+        if False == _print_version_number(os.path.join(BIN_DIR, NINJA_BIN)):
             has_error = True
     else:
         has_error = True
@@ -149,4 +151,4 @@ def main():
     return 1 if has_error else 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run(sys.argv[1:]))
