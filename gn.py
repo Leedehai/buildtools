@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright: see README and LICENSE under the project root directory.
 # Author: @Leedehai
 #
@@ -6,6 +6,8 @@
 # ---------------------------
 # Wrapper script of the GN binary. If binary is not found, it will
 # download it.
+#
+# Migrated from Python2.7; new features not all applied yet.
 
 import os, sys
 import platform
@@ -25,14 +27,14 @@ BIN_DIR = os.path.join(
         "linux" if get_platform().startswith("linux") else "darwin"))
 BIN_PATH = os.path.join(BIN_DIR, "gn")
 
-def execute_with_downloaded_bin(args):
+def execute_with_downloaded_bin(args: list) -> int:
     if not os.path.isfile(BIN_PATH):
         import get_binaries
         if 0 != get_binaries.run(): # Download both GN and Ninja
             return 1
     return subprocess.call([ BIN_PATH ] + args[1:])
 
-def has_bin_locally(name):
+def has_bin_locally(name: str) -> bool:
     # I could use shutil.which() but it's only available in Python3.3+
     with open(os.devnull, 'w') as devnull:
         has_chromium_dev_depot_tools = 0 == subprocess.call(
@@ -45,7 +47,7 @@ def has_bin_locally(name):
         )
     return ret == 0
 
-def main(args):
+def main(args: list) -> int:
     programe_name = os.path.basename(BIN_PATH)
     if has_bin_locally(programe_name):
         return subprocess.call([ programe_name ] + args[1:])

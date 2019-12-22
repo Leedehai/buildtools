@@ -5,7 +5,7 @@ Build tools: [ninja](https://ninja-build.org) and [GN](https://gn.googlesource.c
 ### Prerequisites
 
 - Linux or macOS
-- Python 2.7+ or 3.5+
+- Python 3.5+
 
 ### Transparent setup
 

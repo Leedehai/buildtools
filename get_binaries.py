@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright: the LLVM project (https://llvm.org), modified
 # Author: the LLVM authors, @Leedehai
 #
@@ -7,6 +7,8 @@
 # Download latest GN and Ninja binaries.
 # You do not need to execute this script directly; gn.py and ninja.py will execute
 # it if binaries are needed but not found.
+#
+# Migrated from Python2.7; new features not all applied yet.
 
 import os, sys
 import argparse
@@ -17,14 +19,9 @@ import stat
 import subprocess
 import zipfile
 
-try: # For Python 3.0 and later, nasty Python
-    from urllib.request import urlopen
-    from urllib.error import HTTPError
-    from urllib.error import URLError
-except ImportError: # Fall back to Python 2's urllib2
-    from urllib2 import urlopen
-    from urllib2 import HTTPError
-    from urllib2 import URLError
+from urllib.request import urlopen
+from urllib.error import HTTPError
+from urllib.error import URLError
 
 def _get_platform():
     if platform.machine() not in ["AMD64", "x86_64"]:
@@ -43,7 +40,9 @@ GN_URL = "https://chrome-infra-packages.appspot.com/dl/gn/gn/%s/+/latest" % PLAT
 NINJA_BIN = "ninja"
 NINJA_URL = "https://chrome-infra-packages.appspot.com/dl/infra/ninja/%s/+/latest" % PLATFORM
 
-def _download_and_unpack(what, url, output_dir, bin_name, only_dowload_if_must):
+def _download_and_unpack(
+    what: str, url: str, output_dir: str,
+    bin_name: str, only_dowload_if_must: bool) -> bool:
     """Download an archive from url and extract gn from it into output_dir."""
     file_path = os.path.join(output_dir, bin_name)
     already_exist = os.path.isfile(file_path)
@@ -55,33 +54,43 @@ def _download_and_unpack(what, url, output_dir, bin_name, only_dowload_if_must):
     print("[build tools] Downloading %s binary for '%s'..." % (what, PLATFORM))
     sys.stdout.flush()
     try:
-        zipfile.ZipFile(io.BytesIO(urlopen(url).read())).extract(bin_name, path=output_dir)
+        # a bug in macOS's Python3 installation with HTTPS utilities
+        # https://stackoverflow.com/questions/27835619/urllib-and-ssl-certificate-verify-failed-error
+        if sys.platform.lower().startswith("darwin"):
+            from ssl import SSLContext
+            network_stream = urlopen(url, context = SSLContext())
+        else:
+            network_stream = urlopen(url)
+        zipfile.ZipFile(io.BytesIO(network_stream.read())).extract(bin_name, path=output_dir)
     except HTTPError as e:
-        print("HTTPError to %s\n%s" % (url, e))
-        if int(e.code / 100) == 4:
-            print("************** ACTION APPRECIATED **************")
-            print("*                                              *")
-            print("* If you are *certain* this URL (operated by   *")
-            print("* Google Cloud) is not blocked in your region, *")
-            print("* please alert the project author the URL was  *")
-            print("* likely deprecated, HTTP error %3s            *" % e.code)
-            print("*                                              *")
-            print("************************************************")
+        print("\tHTTPError %s: %s\n\turl: %s" % (e.code, e.reason, url))
+        if 4 <= int(e.code / 100) <= 5:
+            print("\t************** ACTION APPRECIATED ************\n"
+                  "\t*                                            *\n"
+                  "\t* If you are *certain* the URL isn't blocked *\n"
+                  "\t* in your region, please alert the author of *\n"
+                  "\t* this project (Leedehai on GitHub) this URL *\n"
+                  "\t* is likely broken, HTTP error %3s           *\n"
+                  "\t*                                            *\n"
+                  "\t**********************************************" % e.code)
         return False
     except URLError as e:
-        print("URLError %s, message: %s" % (url, e))
-        print("Are you disconnected from the network? (other reasons may apply)")
+        print("\tURLError: %s\n\turl: %s" % (e.reason, url))
+        print("\tAre you...\n"
+              "\t  1. disconnected from the network? or\n"
+              "\t  2. behind an erring proxy?\n"
+              "\t(other reasons may apply)")
         return False
     except Exception as e:
         print(e)
         return False
     return True
 
-def _set_executable_bit(filepath):
+def _set_executable_bit(filepath: str) -> None:
     file_stats = os.stat(filepath)
     os.chmod(filepath, file_stats.st_mode | stat.S_IXUSR)
 
-def _print_version_number(path, user_called_explicitly=False):
+def _print_version_number(path: str, user_called_explicitly: bool = False) -> bool:
     try:
         version_info = subprocess.check_output([path, "--version"]).decode().strip()
     except (subprocess.CalledProcessError, OSError) as e: # OSError: e.g. binaries not found
@@ -93,7 +102,7 @@ def _print_version_number(path, user_called_explicitly=False):
         print("%14s'%s --version': %s" % (" ", os.path.basename(path), version_info))
     return True
 
-def run(argv=[]):
+def run(argv: list = []) -> int:
     parser = argparse.ArgumentParser(
         description="Download latest GN and Ninja binaries from:\n  %s\n  %s" % (GN_URL, NINJA_URL),
         epilog="If no option is given, download the binaries.",

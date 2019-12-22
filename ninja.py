@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Copyright: see README and LICENSE under the project root directory.
 # Author: @Leedehai
 #
@@ -6,6 +6,8 @@
 # ---------------------------
 # Wrapper script of the ninja binary. If binary is not found, it will
 # download it.
+#
+# Migrated from Python2.7; new features not all applied yet.
 
 import os, sys
 import platform
@@ -30,18 +32,18 @@ BIN_PATH = os.path.join(BIN_DIR, "ninja")
 # %e: elapsed_time (seconds in floating number)
 ENVIRON = dict(os.environ)
 ENVIRON.update({ "NINJA_STATUS": "[%f/%t:%es] " })
-def execute(program, args):
+def execute(program: str, args: list) -> int:
     # Popen.wait() returns the child's return code
     return subprocess.Popen([ program ] + args, env=ENVIRON).wait()
 
-def execute_with_downloaded_bin(args):
+def execute_with_downloaded_bin(args: list) -> int:
     if not os.path.isfile(BIN_PATH):
         import get_binaries
         if 0 != get_binaries.run(): # Download both GN and Ninja
             return 1
     return execute(BIN_PATH, args[1:])
 
-def has_bin_locally(name):
+def has_bin_locally(name: str) -> bool:
     # I could use shutil.which() but it's only available in Python3.3+
     with open(os.devnull, 'w') as devnull:
         has_chromium_dev_depot_tools = 0 == subprocess.call(
@@ -54,7 +56,7 @@ def has_bin_locally(name):
         )
     return ret == 0
 
-def main(args):
+def main(args: list) -> int:
     programe_name = os.path.basename(BIN_PATH)
     if has_bin_locally(programe_name):
         return execute(programe_name, args[1:])
