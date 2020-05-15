@@ -121,6 +121,11 @@ def run(argv: list = []) -> int:
         epilog="If no option is given, download the binaries.",
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
+        "-u",
+        "--show-urls",
+        action="store_true",
+        help="print URLs to download binaries and exit")
+    parser.add_argument(
         "-v",
         "--versions",
         action="store_true",
@@ -129,7 +134,7 @@ def run(argv: list = []) -> int:
         "-i",
         "--only-download-if-must",
         action="store_true",
-        help="only download if the binary does not exist")
+        help="skip re-downloading a binary if it exists")
     parser.add_argument(
         "-r",
         "--remove",
@@ -146,6 +151,11 @@ def run(argv: list = []) -> int:
         gn_ok = _print_version_number(os.path.join(BIN_DIR, GN_BIN), True)
         ninja_ok = _print_version_number(os.path.join(BIN_DIR, NINJA_BIN), True)
         return 0 if (gn_ok and ninja_ok) else 1
+
+    if args.show_urls:
+        print("%s: %s" % (GN_BIN, GN_URL))
+        print("%s: %s" % (NINJA_BIN, NINJA_URL))
+        return 0
 
     if args.remove:
         shutil.rmtree(BIN_DIR, ignore_errors=True)
