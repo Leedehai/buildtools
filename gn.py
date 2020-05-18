@@ -57,5 +57,4 @@ if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv))
     except KeyboardInterrupt:
-        sys.stderr.write("\x1b[33m gn.py: Interrupted\x1b[0m")
-        sys.exit(1)
+        sys.exit("\x1b[33mgn.py: Interrupted\x1b[0m")
