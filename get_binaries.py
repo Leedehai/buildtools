@@ -24,7 +24,7 @@ from urllib.error import HTTPError
 from urllib.error import URLError
 
 
-def _get_platform():
+def _get_sys_arch():
     if platform.machine() not in ["AMD64", "x86_64"]:
         return None
     if sys.platform.startswith("linux"):
@@ -34,14 +34,15 @@ def _get_platform():
     raise NotImplementedError("Platform '%s' not supported" % sys.platform)
 
 
-PLATFORM = _get_platform()
+SYS_ARCH = _get_sys_arch()
+SYS, ARCH = SYS_ARCH.split('-')
 BIN_DIR = os.path.join(  # This project only supports Linux or macOS
     os.path.dirname(__file__), "bin",
-    ("linux" if PLATFORM.startswith("linux") else "macos"))
+    ("linux" if SYS_ARCH.startswith("linux") else "macos"))
 GN_BIN = "gn"
-GN_URL = "https://chrome-infra-packages.appspot.com/dl/gn/gn/%s/+/latest" % PLATFORM
+GN_URL = "https://chrome-infra-packages.appspot.com/dl/gn/gn/%s/+/latest" % SYS_ARCH
 NINJA_BIN = "ninja"
-NINJA_URL = "https://chrome-infra-packages.appspot.com/dl/infra/ninja/%s/+/latest" % PLATFORM
+NINJA_URL = "https://github.com/ninja-build/ninja/releases/latest/download/ninja-%s.zip" % SYS
 
 
 def _download_and_unpack(what: str, url: str, output_dir: str, bin_name: str,
@@ -51,11 +52,11 @@ def _download_and_unpack(what: str, url: str, output_dir: str, bin_name: str,
     already_exist = os.path.isfile(file_path)
     if only_dowload_if_must and already_exist:
         print("[build tools] %s binary for '%s' already downloaded" %
-              (what, PLATFORM))
+              (what, SYS_ARCH))
         return True
     # do not remove any existing binary before (re-)downloading, because
     # downloading might encounter an error; a successful download can overwrite
-    print("[build tools] Downloading %s binary for '%s'..." % (what, PLATFORM))
+    print("[build tools] Downloading %s binary for '%s'..." % (what, SYS_ARCH))
     sys.stdout.flush()
     try:
         # a bug in macOS's Python3 installation with HTTPS utilities
@@ -164,7 +165,7 @@ def run(argv: list = []) -> int:
         shutil.rmtree(os.path.dirname(BIN_DIR), ignore_errors=True)
         return 0
 
-    if not PLATFORM:
+    if not SYS_ARCH:
         print("no prebuilt binary offered for '%s'" % sys.platform)
         return 1
 
