@@ -1,63 +1,47 @@
 #!/usr/bin/env python3
-# Copyright: the LLVM project (https://llvm.org), modified
-# Author: the LLVM authors, @Leedehai
-#
-# File: get-binary.py
-# ---------------------------
+# Copyright (c) 2020 Leedehai. All rights reserved.
+# Use of this source code is governed under the LICENSE.txt file.
+# -----
 # Download latest GN and Ninja binaries.
 # You do not need to execute this script directly; gn.py and ninja.py will execute
 # it if binaries are needed but not found.
-#
-# Migrated from Python2.7; new features not all applied yet.
 
 import os, sys
 import argparse
 import io
-import platform
 import shutil
 import stat
 import subprocess
 import zipfile
-
 from urllib.request import urlopen
 from urllib.error import HTTPError
 from urllib.error import URLError
+from typing import Optional
 
+import common_utils
 
-def _get_sys_arch():
-    if platform.machine() not in ["AMD64", "x86_64"]:
-        return None
-    if sys.platform.startswith("linux"):
-        return "linux-amd64"
-    if sys.platform == "darwin":
-        return "mac-amd64"
-    raise NotImplementedError("Platform '%s' not supported" % sys.platform)
-
-
-SYS_ARCH = _get_sys_arch()
-SYS, ARCH = SYS_ARCH.split('-')
-BIN_DIR = os.path.join(  # This project only supports Linux or macOS
-    os.path.dirname(__file__), "bin",
-    ("linux" if SYS_ARCH.startswith("linux") else "macos"))
+BIN_DIR = common_utils.binary_dir
 GN_BIN = "gn"
-GN_URL = "https://chrome-infra-packages.appspot.com/dl/gn/gn/%s/+/latest" % SYS_ARCH
+GN_URL = "https://chrome-infra-packages.appspot.com/dl/gn/gn/%s/+/latest" % common_utils.sys_arch
 NINJA_BIN = "ninja"
-NINJA_URL = "https://github.com/ninja-build/ninja/releases/latest/download/ninja-%s.zip" % SYS
+NINJA_URL = "https://github.com/ninja-build/ninja/releases/latest/download/ninja-%s.zip" % common_utils.sys
 
 
 def _download_and_unpack(what: str, url: str, output_dir: str, bin_name: str,
-                         only_dowload_if_must: bool) -> bool:
+                         only_dowload_if_must: bool, verbose: bool) -> bool:
     """Download an archive from url and extract gn from it into output_dir."""
     file_path = os.path.join(output_dir, bin_name)
     already_exist = os.path.isfile(file_path)
     if only_dowload_if_must and already_exist:
-        print("[build tools] %s binary for '%s' already downloaded" %
-              (what, SYS_ARCH))
+        if verbose:
+            print("[build tools] %s binary for '%s' already downloaded" %
+                  (what, common_utils.sys_arch))
         return True
-    # do not remove any existing binary before (re-)downloading, because
-    # downloading might encounter an error; a successful download can overwrite
-    print("[build tools] Downloading %s binary for '%s'..." % (what, SYS_ARCH))
-    sys.stdout.flush()
+    # Do not remove any existing binary before (re-)downloading, because
+    # downloading might encounter an error; a successful download can overwrite.
+    if verbose:
+        print("[build tools] Downloading %s binary for '%s'..." %
+              (what, common_utils.sys_arch))
     try:
         # a bug in macOS's Python3 installation with HTTPS utilities
         # https://stackoverflow.com/questions/27835619/urllib-and-ssl-certificate-verify-failed-error
@@ -87,7 +71,7 @@ def _download_and_unpack(what: str, url: str, output_dir: str, bin_name: str,
               "\t  2. behind an erring proxy?\n"
               "\t(other reasons may apply)")
         return False
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         print(e)
         return False
     return True
@@ -98,24 +82,16 @@ def _set_executable_bit(filepath: str) -> None:
     os.chmod(filepath, file_stats.st_mode | stat.S_IXUSR)
 
 
-def _print_version_number(path: str,
-                          user_called_explicitly: bool = False) -> bool:
+def _get_version_string(path: str) -> Optional[str]:
     try:
-        version_info = subprocess.check_output([path,
-                                                "--version"]).decode().strip()
-    except (subprocess.CalledProcessError,
-            OSError) as e:  # OSError: e.g. binaries not found
-        print("[Error] '%s --version' returns an error" % path)
-        return False
-    if user_called_explicitly:
-        print("%-5s : %s" % (os.path.basename(path), version_info))
-    else:
-        print("%14s'%s --version': %s" %
-              (" ", os.path.basename(path), version_info))
-    return True
+        out_bytes = subprocess.check_output([path, "--version"])
+    except (subprocess.CalledProcessError, OSError):  # OSError: e.g. not found
+        sys.stderr.write("[Error] '%s --version' returns an error\n" % path)
+        return None
+    return out_bytes.decode().strip()
 
 
-def run(argv: list = []) -> int:
+def run(argv: list) -> int:
     parser = argparse.ArgumentParser(
         description="Download latest GN and Ninja binaries from:\n  %s\n  %s" %
         (GN_URL, NINJA_URL),
@@ -133,25 +109,30 @@ def run(argv: list = []) -> int:
         help="print version numbers of the downloaded binaries")
     parser.add_argument(
         "-i",
-        "--only-download-if-must",
+        "--skip-if-exists",
         action="store_true",
         help="skip re-downloading a binary if it exists")
     parser.add_argument(
+        "-s", "--succinct", action="store_true", help="do not be so verbose")
+    parser.add_argument(
         "-r",
         "--remove",
-        action="store_true",  # remove bin/macos or bin/linux, depending on the current OS
-        help="remove downloaded binaries in %s" % BIN_DIR)
+        action="store_true",  # remove bin/mac or bin/linux, depending on the current OS
+        help="remove downloaded binaries in %s" % os.path.relpath(BIN_DIR))
     parser.add_argument(
         "-ra",
         "--remove-all",
-        action="store_true",  # remove bin/, bin/macos, bin/linux
-        help="remove directory %s" % os.path.dirname(BIN_DIR))
+        action="store_true",  # remove bin/, bin/mac, bin/linux
+        help="remove directory %s" % os.path.relpath(os.path.dirname(BIN_DIR)))
     args = parser.parse_args(argv)
 
     if args.versions:
-        gn_ok = _print_version_number(os.path.join(BIN_DIR, GN_BIN), True)
-        ninja_ok = _print_version_number(os.path.join(BIN_DIR, NINJA_BIN), True)
-        return 0 if (gn_ok and ninja_ok) else 1
+        gn_ver = _get_version_string(os.path.join(BIN_DIR, GN_BIN))
+        ninja_ver = _get_version_string(os.path.join(BIN_DIR, NINJA_BIN))
+        if gn_ver and ninja_ver:
+            print("ninja: %s\tgn: %s" % (ninja_ver, gn_ver))
+            return 0
+        return 1
 
     if args.show_urls:
         print("%s: %s" % (GN_BIN, GN_URL))
@@ -165,7 +146,7 @@ def run(argv: list = []) -> int:
         shutil.rmtree(os.path.dirname(BIN_DIR), ignore_errors=True)
         return 0
 
-    if not SYS_ARCH:
+    if not common_utils.sys_arch:
         print("no prebuilt binary offered for '%s'" % sys.platform)
         return 1
 
@@ -177,17 +158,19 @@ def run(argv: list = []) -> int:
     has_error = False
 
     if True == _download_and_unpack("GN", GN_URL, BIN_DIR, GN_BIN,
-                                    args.only_download_if_must):
+                                    args.skip_if_exists, not args.succinct):
         _set_executable_bit(os.path.join(BIN_DIR, GN_BIN))
-        if False == _print_version_number(os.path.join(BIN_DIR, GN_BIN)):
+        gn_ver = _get_version_string(os.path.join(BIN_DIR, GN_BIN))
+        if not gn_ver:
             has_error = True
     else:
         has_error = True
 
     if True == _download_and_unpack("Ninja", NINJA_URL, BIN_DIR, NINJA_BIN,
-                                    args.only_download_if_must):
+                                    args.skip_if_exists, not args.succinct):
         _set_executable_bit(os.path.join(BIN_DIR, NINJA_BIN))
-        if False == _print_version_number(os.path.join(BIN_DIR, NINJA_BIN)):
+        ninja_ver = _get_version_string(os.path.join(BIN_DIR, NINJA_BIN))
+        if not ninja_ver:
             has_error = True
     else:
         has_error = True
@@ -196,6 +179,8 @@ def run(argv: list = []) -> int:
         print("Error encountered: cannot download binaries.")
         print("To circumvent: see %s/README.md section 'Alternative setup'." %
               os.path.dirname(__file__))
+    else:
+        print("  ninja: %s\tgn: %s" % (ninja_ver, gn_ver))
 
     return 1 if has_error else 0
 

@@ -22,7 +22,7 @@ customized for the Chromium projects).
 
 The download sources can be found in the proxy scripts, respectively.
 
-After downloading, the binaries will be stored in `bin/linux` (or `bin/macos` if
+After downloading, the binaries will be stored in `bin/linux` (or `bin/mac` if
 you are on a macOS). They will not be added to your `PATH`. Instead, you should
 call the proxy scripts in lieu of calling the binaries.
 
@@ -35,8 +35,8 @@ error, you can tell the proxy scripts to use locally-built/installed binaries.
 # Assume you are at this directory.
 
 # step 1: create bin/XXX and change working directory
-mkdir -p bin/linux # on macOS: mkdir -p bin/macos
-cd bin/linux       # on macOS: cd bin/macos
+mkdir -p bin/linux # on macOS: mkdir -p bin/mac
+cd bin/linux       # on macOS: cd bin/mac
 
 # step 2: make symlinks
 ln -s /path/to/your/gn gn

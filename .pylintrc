@@ -1,0 +1,22 @@
+# This file configures the Python linter pylint.
+
+[MESSAGES CONTROL]
+disable=
+  bad-continuation,
+  bad-whitespace,
+  fixme,
+  import-error,
+  invalid-name,
+  line-too-long,
+  misplaced-comparison-constant,
+  missing-class-docstring,
+  missing-function-docstring,
+  missing-module-docstring,
+  multiple-imports,
+  no-name-in-module,
+  singleton-comparison,
+  too-few-public-methods,
+  too-many-arguments,
+  too-many-branches,
+  too-many-return-statements,
+  wrong-import-position,
