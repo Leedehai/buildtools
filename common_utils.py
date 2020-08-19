@@ -5,17 +5,25 @@ import os, sys
 import platform
 import shutil
 import subprocess
-from typing import Dict, List
+from typing import Dict, List, Optional, cast
 
-def _get_sys_arch():
-    if platform.machine() not in ["AMD64", "x86_64"]:
-        return None
-    if sys.platform.startswith("linux"):
-        return "linux-amd64"
-    if sys.platform == "darwin":
-        return "mac-amd64"
-    raise NotImplementedError("Platform '%s' not supported" % sys.platform)
+def _get_sys() -> Optional[str]:
+    sys_platform = sys.platform
+    if sys_platform.startswith("linux"):
+        return "linux"
+    if sys_platform in ["darwin", "mac"]:
+        return "mac"
+    return None
 
+def _get_arch() -> Optional[str]:
+    machine = platform.machine()
+    if machine in ["AMD64", "amd64", "x86_64", "x64"]:
+        return "x64"
+    if machine in ["arm64", "aarch64"]:
+        return "arm64"
+    if machine in "riscv64":
+        return "riscv64"
+    return None
 
 def has_bin_on_PATH(name: str) -> bool:
     # Early return if the Chromium development kit exists. If it exist,
@@ -25,10 +33,9 @@ def has_bin_on_PATH(name: str) -> bool:
     return shutil.which(name) != None
 
 
-sys_arch = _get_sys_arch()
-sys, arch = sys_arch.split('-')
+sys_name, arch_name = _get_sys(), _get_arch()
 binary_dir = os.path.join(
-    os.path.abspath(os.path.dirname(__file__)), "bin", sys)
+    os.path.abspath(os.path.dirname(__file__)), "bin", cast(str, sys_name))
 
 def execute(program: str, *, args: List[str], env: Dict[str, str]) -> int:
     return subprocess.Popen([program] + args, env=env).wait()

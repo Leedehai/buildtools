@@ -20,7 +20,8 @@ if:
 (presence of `gclient` implies the `ninja` and `gn` commands found are
 customized for the Chromium projects).
 
-The download sources can be found in the proxy scripts, respectively.
+The zipball URLs for downloading are in the [get_binaries.py](get_binaries.py)
+source, or can be shown with command `get_binaries.py --show-urls`.
 
 After downloading, the binaries will be stored in `bin/linux` (or `bin/mac` if
 you are on a macOS). They will not be added to your `PATH`. Instead, you should

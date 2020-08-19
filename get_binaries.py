@@ -16,16 +16,33 @@ import zipfile
 from urllib.request import urlopen
 from urllib.error import HTTPError
 from urllib.error import URLError
-from typing import Optional
+from typing import Dict, Optional
 
 import common_utils
 
+ZIP_URLS: Dict[tuple, Dict[str, str]] = {
+    ("linux", "x64"): {
+        "gn": "https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest",
+        "ninja": "https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip",
+    },
+    ("mac", "x64"): {
+        "gn": "https://chrome-infra-packages.appspot.com/dl/gn/gn/mac-amd64/+/latest",
+        "ninja": "https://github.com/ninja-build/ninja/releases/latest/download/ninja-mac.zip"
+    }
+}
+
 BIN_DIR = common_utils.binary_dir
 GN_BIN = "gn"
-GN_URL = "https://chrome-infra-packages.appspot.com/dl/gn/gn/%s/+/latest" % common_utils.sys_arch
 NINJA_BIN = "ninja"
-NINJA_URL = "https://github.com/ninja-build/ninja/releases/latest/download/ninja-%s.zip" % common_utils.sys
 
+try:
+    GN_URL = ZIP_URLS[(common_utils.sys_name, common_utils.arch_name)]["gn"]
+except KeyError:
+    GN_URL = None
+try:
+    NINJA_URL = ZIP_URLS[(common_utils.sys_name, common_utils.arch_name)]["ninja"]
+except KeyError:
+    NINJA_URL = None
 
 def _download_and_unpack(what: str, url: str, output_dir: str, bin_name: str,
                          only_dowload_if_must: bool, verbose: bool) -> bool:
@@ -34,14 +51,14 @@ def _download_and_unpack(what: str, url: str, output_dir: str, bin_name: str,
     already_exist = os.path.isfile(file_path)
     if only_dowload_if_must and already_exist:
         if verbose:
-            print("[build tools] %s binary for '%s' already downloaded" %
-                  (what, common_utils.sys_arch))
+            print("[build tools] %s binary for (%s, %s) already downloaded" %
+                  (what, common_utils.sys_name, common_utils.arch_name))
         return True
     # Do not remove any existing binary before (re-)downloading, because
     # downloading might encounter an error; a successful download can overwrite.
     if verbose:
-        print("[build tools] Downloading %s binary for '%s'..." %
-              (what, common_utils.sys_arch))
+        print("[build tools] Downloading %s binary for (%s, %s)..." %
+              (what, common_utils.sys_name, common_utils.arch_name))
     try:
         # a bug in macOS's Python3 installation with HTTPS utilities
         # https://stackoverflow.com/questions/27835619/urllib-and-ssl-certificate-verify-failed-error
@@ -109,7 +126,7 @@ def run(argv: list) -> int:
         help="print version numbers of the downloaded binaries")
     parser.add_argument(
         "-i",
-        "--skip-if-exists",
+        "--skip-if-present",
         action="store_true",
         help="skip re-downloading a binary if it exists")
     parser.add_argument(
@@ -135,8 +152,8 @@ def run(argv: list) -> int:
         return 1
 
     if args.show_urls:
-        print("%s: %s" % (GN_BIN, GN_URL))
-        print("%s: %s" % (NINJA_BIN, NINJA_URL))
+        print("%s %s" % (GN_BIN, GN_URL))
+        print("%s %s" % (NINJA_BIN, NINJA_URL))
         return 0
 
     if args.remove:
@@ -146,33 +163,35 @@ def run(argv: list) -> int:
         shutil.rmtree(os.path.dirname(BIN_DIR), ignore_errors=True)
         return 0
 
-    if not common_utils.sys_arch:
-        print("no prebuilt binary offered for '%s'" % sys.platform)
+    if GN_URL == None or NINJA_URL == None:
+        print("no prebuilt binary offered for (%s, %s)" % (
+            common_utils.sys_name, common_utils.arch_name))
         return 1
 
     if not os.path.exists(BIN_DIR):
-        os.makedirs(
-            BIN_DIR
-        )  # os.makedirs() recursively make the intermediate directories
+        # os.makedirs() recursively make the intermediate directories
+        os.makedirs(BIN_DIR)
 
     has_error = False
 
     if True == _download_and_unpack("GN", GN_URL, BIN_DIR, GN_BIN,
-                                    args.skip_if_exists, not args.succinct):
+                                    args.skip_if_present, not args.succinct):
         _set_executable_bit(os.path.join(BIN_DIR, GN_BIN))
         gn_ver = _get_version_string(os.path.join(BIN_DIR, GN_BIN))
         if not gn_ver:
             has_error = True
     else:
+        gn_ver = None
         has_error = True
 
     if True == _download_and_unpack("Ninja", NINJA_URL, BIN_DIR, NINJA_BIN,
-                                    args.skip_if_exists, not args.succinct):
+                                    args.skip_if_present, not args.succinct):
         _set_executable_bit(os.path.join(BIN_DIR, NINJA_BIN))
         ninja_ver = _get_version_string(os.path.join(BIN_DIR, NINJA_BIN))
         if not ninja_ver:
             has_error = True
     else:
+        ninja_ver = None
         has_error = True
 
     if has_error:
@@ -180,7 +199,7 @@ def run(argv: list) -> int:
         print("To circumvent: see %s/README.md section 'Alternative setup'." %
               os.path.dirname(__file__))
     else:
-        print("  ninja: %s\tgn: %s" % (ninja_ver, gn_ver))
+        print("buildtools: ninja %s, gn %s" % (ninja_ver, gn_ver))
 
     return 1 if has_error else 0
 
